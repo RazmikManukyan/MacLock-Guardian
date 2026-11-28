@@ -7,8 +7,14 @@ build/
 *.pem
 *.key
 *.secret
-config
 .env
 .env.*
 bot-token
+chat-id
+config
 health-state
+location-enabled
+location.*
+*.app/
+*.dmg
+*.zip

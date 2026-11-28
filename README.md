@@ -1,72 +1,71 @@
 # MacLock Guardian
 
-**Open-source macOS failed-unlock alerts to Telegram, with an optional webcam photo.**
+**v1.1.0-alpha.1** — experimental open-source macOS security alerts (source code).
 
-> **Early prototype / not audited.** Adapted from a setup manually tested on one Intel MacBook running macOS Sonoma 14. The repository version has **not yet been tested end-to-end on another Mac**. Do not rely on it as your only security measure.
+A user-session tool that looks for a failed Mac unlock, then attempts to send a Telegram text alert and webcam photo. Includes a separately authorized **manual location map test** and an **experimental, opt-in event-triggered location** option.
 
-## Features
+> **Alpha / not security audited / not independently tested end-to-end.** Do not trust it as your only protection. Prefer **Find My**, FileVault and macOS security updates for lost/stolen devices.
 
-- Watches macOS `loginwindow` logs for the phrase `INCORRECT password`.
-- Sends a Telegram text alert; optionally captures a camera frame and sends the photo.
-- Waits for camera warm-up and uses a permissive low-light brightness check (which does not reliably reject black images).
-- Uses 30-second event cooldown to reduce bursts (this can also suppress distinct attempts).
-- Automatically deletes generated photos older than 14 days.
-- Runs as user-level `launchd` agents; requires no third-party runtime libraries beyond native macOS frameworks, shell, and system developer tools to compile.
-- Stores Telegram credentials in a local file with restrictive permissions, excluded from Git.
+## Main features
 
-## Supported environment and limitations
+- Telegram failed-unlock text alerts, with best-effort webcam photos
+- One event watcher and a 30-second cooldown (can suppress distinct attempts)
+- Low-light webcam capture (minimum measured brightness threshold 1/255; does not guarantee usable image)
+- Manual location map from the separate location app, with your explicit confirmation
+- Optional location following failed unlock: **off by default**, experimental and not guaranteed while locked
+- Daily cleanup of local `attempt-*.jpg` photos after 14 days
+- Health state-change warning for the event watcher every 15 minutes
+- No continuous photo, audio, video or location tracking
 
-- **Prototype tested on:** Intel MacBook Air, macOS Sonoma 14. Other machines/OS versions need verification.
-- The low-light brightness filter is provisional. A clear photo on one Mac does not guarantee it will reject black frames or work in every environment.
-- Requires a local, signed/ad-hoc-signed camera app and explicit **Camera** privacy permission in macOS Settings.
-- Intended for **your own Mac**, with informed consent from anyone using the camera-equipped machine.
-- Does not bypass camera privacy controls. On some Macs the camera is unavailable at the lock screen; this can produce no photo even when text alerts work.
-- Requires a **logged-in user session**; not active at FileVault initial login, when off, or reliably during sleep.
-- `loginwindow` logging format can change after macOS updates. Detection is best effort.
-- Internet required for Telegram messages; Telegram is an external service, so sent photos leave your Mac and are subject to its policies.
-- No protection from malware/admin tampering or password theft; use FileVault and Find My Mac.
+## Supported environment
 
-## Before installing
+**Target:** macOS 14 Sonoma, Intel Mac initially. Other Apple Silicon and macOS releases require testing. Use only with permission on a Mac you own or administer, respecting other users' privacy.
 
-**If you already run `com.macsecurity.alert` / `com.macsecurity.photo`**, do not install this prototype alongside them: you could receive duplicate messages. Its installer detects those services and stops. Test on a different Mac or separate macOS account first.
+Needs active signed-in user session, network connectivity for Telegram, and macOS privacy permissions. Does not operate while shut down or before initial FileVault sign-in; camera or location might be unavailable while locked. macOS log wording may change.
 
-Create a bot using [@BotFather](https://t.me/BotFather). Start a private chat with the bot and obtain your numeric chat ID through Telegram's bot API (`getUpdates`) or another trustworthy method. **Never post your bot token or chat ID in screenshots, issues, repositories, or chat messages.**
+## Safe installation and testing (on a SEPARATE Mac/account)
 
-## Build and test on a separate test Mac
+**Important for existing users:** The installer intentionally refuses to run if it detects the older `com.macsecurity.alert`, `.photo`, `.cleanup`, `.health`, or `.notify` services. **Do not install this project alongside the five services already working on your Mac.** The repository release is intended for independent testing first.
 
-1. Download the repository (as ZIP) or clone it.
-2. Open Terminal in the extracted project folder.
-3. Run `bash scripts/build-camera.sh` (requires Apple Command Line Tools and a working `clang`).
-4. Test camera **while unlocked**: `open -W build/MacLockCamera.app --args "$PWD/build/test.jpg"`. Approve Camera permission. Check `build/test.jpg` locally.
-5. Run `bash scripts/install.sh` and enter your **own** Telegram bot token and chat ID. Credentials are stored only in `~/.maclock-guardian/config`, not in the repo.
-6. Check `bash scripts/status.sh`.
-7. Lock the Mac (`Control+Command+Q`), enter one wrong password, then unlock. Verify text and photograph separately. Test again after reboot and login.
+1. Get this source repository on the test Mac. Inspect all scripts.
+2. Run `bash tests/smoke.sh` (static checks).
+3. Run `bash scripts/build-all.sh` (requires Apple Command Line Tools with usable Objective-C `clang`, frameworks, and `codesign`).
+4. Test the camera while unlocked: `open -n -W build/MacLockCamera.app --args "$PWD/build/camera-test.jpg"`. Inspect the local photo and macOS Camera permission.
+5. Open the location app while unlocked: `open -n build/MacLockLocation.app`. Approve macOS Location Services and test detection. Telegram requires installation first because credentials have not yet been configured.
+6. Run `bash scripts/install.sh` to configure a **new private Telegram bot token and chat ID** for this test installation (the installer stores them in `~/.maclock-guardian` with strict permissions).
+7. Open the **installed** location app `open -n ~/.maclock-guardian/MacLockLocation.app` and test location/manual Telegram again, because it has the final installed app identity.
+8. Run `bash scripts/status.sh` and test a wrong-password alert while signed in. Check text, image, and health separately.
+9. **Only after manual location succeeds for the installed app**, optionally run `bash scripts/enable-location.sh` and acknowledge the explicit consent prompt. Re-test one failed unlock while the lid is open and the Mac stays awake. Location failure must not affect text/photo alerts.
+10. After testing run `bash scripts/disable-location.sh` to stop automatic location without altering other alerts.
 
-For extra safety, test in a non-primary account and review the source before installing. No `sudo` or system daemon is needed.
+To uninstall this test edition run `bash scripts/uninstall.sh`. It leaves your photos, config and logs for manual review. It never touches `com.macsecurity.*` services.
 
-## Uninstall
+## Source tree
 
-Run `bash scripts/uninstall.sh`. It stops **only** the `org.maclockguardian.*` agents created by this project. Local photos, logs and configuration are **kept** for your review. Manually delete `~/.maclock-guardian` if no longer needed.
+- `src/Camera.m` — built-in camera capture
+- `src/Location.m` — manual location and experimental single-fix background mode
+- `scripts/build-all.sh` — builds both local app bundles, ad-hoc signs them
+- `scripts/install.sh` — configures Telegram and MacLock Guardian LaunchAgents
+- `scripts/monitor.sh` — failed-unlock watcher with 30-second cooldown
+- `scripts/notify.sh` — independent text/photo/optional location attempts
+- `scripts/enable-location.sh`, `disable-location.sh` — explicit opt-in control
+- `scripts/cleanup.sh` — removes old local failed-unlock JPEGs
+- `scripts/health.sh` — health-change warnings; no spam on stable state
+- `tests/smoke.sh` — shell/plist sanity tests
 
-## Technical design
+## Privacy and limitations
 
-`log stream` → one `monitor.sh` watcher → `notify.sh` → Telegram text → authorized `MacLockCamera.app` → Telegram photo.
+- Location coordinates and photographs **leave your Mac** when sent to Telegram. The bot and Telegram service can access that data. Use a private chat and never post credentials publicly.
+- User authorization is required for camera and location. Background location may not be available despite manual success; no attempt to bypass Apple's permission system.
+- `--once` location writes temporary coordinates locally, then deletes them after sending or timeout. A crash may leave a temporary file; inspect `~/.maclock-guardian` carefully if needed.
+- Telegram secrets live in `~/.maclock-guardian/bot-token` and `chat-id`, not in the repository. `.gitignore` excludes common secrets, but **always inspect staged files before pushing**.
+- Not a stealth-monitoring tool: no hidden surveillance, password capture or audio recording. Admin consent required for deployments to other people's devices.
+- Checks run inside a signed-in user session; not a substitute for system-level theft protections.
 
-The second agent runs daily cleanup. A single watcher avoids having two separate log-stream processes for notifications; event cooldown applies to both text and camera alerts together.
+## Roadmap
 
-## Security and privacy
-
-- The camera is enabled only for failed-unlock event handling; no continuous recording.
-- Camera permission is requested normally by macOS.
-- Do not commit secrets or personal photos. `.gitignore` excludes common sensitive files; **review `git status` before every push**.
-- Photos are kept locally for 14 days unless manually removed. Telegram copies are not deleted automatically.
-- Telegram bots should be private; rotate any token accidentally published.
-- Local logs may include diagnostic information. Do not upload them without review.
-
-## Project status
-
-**v0.1 alpha**: source prepared for review and community testing; not yet independently validated or published. Contributions and reproducible issues welcome. Please include your macOS version and architecture but **never secrets or personal images**.
+See `docs/ROADMAP.md` and `docs/RELEASE_NOTES.md`. Next major milestone is a **native setup/status graphical application**. This repo is a source preview, not a downloadable notarized `.app` for the general public.
 
 ## License
 
-MIT. See `LICENSE`.
+MIT — see `LICENSE`.
