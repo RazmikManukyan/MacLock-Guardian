@@ -13,9 +13,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.2.1</string>
+	<string>1.3.0</string>
 	<key>CFBundleVersion</key>
-	<string>2</string>
+	<string>3</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>NSHighResolutionCapable</key>
@@ -24,5 +24,7 @@
 	<string>Request this Mac's location only when you press Get Location. Nothing is shared unless you separately confirm Send One Map.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Request this Mac's location only when you press Get Location. Nothing is shared unless you separately confirm Send One Map.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Open a live, local camera preview only when you press Start Preview in Camera Self-Test. No photos or video are recorded or sent.</string>
 </dict>
 </plist>

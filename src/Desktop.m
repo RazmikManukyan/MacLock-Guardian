@@ -1,7 +1,8 @@
-// MacLock Guardian v1.2.1 desktop diagnostics preview — macOS 14+
+// MacLock Guardian v1.3 desktop camera self-test — macOS 14+
 // AppKit GUI; READ-ONLY monitor status. No LaunchAgents are modified.
 // Telegram and location actions require a deliberate button click and confirmation.
 #import <Cocoa/Cocoa.h>
+#import "CameraPreview.h"
 #import <CoreLocation/CoreLocation.h>
 #include <math.h>
 #include <unistd.h>
@@ -30,6 +31,7 @@ static NSButton *MakeButton(NSString *title, NSRect frame, id target, SEL action
 @property(nonatomic, strong) NSMutableArray<NSButton *> *refreshButtons;
 @property(nonatomic, strong) NSArray<NSString *> *serviceStatuses;
 @property(nonatomic, strong) NSWindow *logWindow;
+@property(nonatomic, strong) CameraPreviewController *cameraPreview;
 @property(nonatomic) BOOL refreshInProgress;
 @property(nonatomic, strong) NSTextField *chatField;
 @property(nonatomic, strong) NSSecureTextField *tokenField;
@@ -126,7 +128,7 @@ static NSButton *MakeButton(NSString *title, NSRect frame, id target, SEL action
         return;
     }
     NSMutableArray<NSString *> *lines = [NSMutableArray arrayWithObject:
-        @"MacLock Guardian v1.2.1 — read-only service registrations (not a delivery test)"];
+        @"MacLock Guardian v1.3 — read-only service registrations (not a delivery test)"];
     for (NSUInteger index = 0; index < self.serviceIDs.count; index++) {
         [lines addObject:[NSString stringWithFormat:@"%@: %@",
             self.serviceIDs[index], self.serviceStatuses[index]]];
@@ -309,7 +311,7 @@ static NSButton *MakeButton(NSString *title, NSRect frame, id target, SEL action
     if ([alert runModal] != NSAlertFirstButtonReturn) return;
     self.tokenField.stringValue = @"";
     [self sendTelegramMethod:@"sendMessage" payload:@{ @"chat_id":chat,
-        @"text":@"MacLock Guardian v1.2.1 desktop test. No security settings were changed." } token:token];
+        @"text":@"MacLock Guardian v1.3 desktop test. No security settings were changed." } token:token];
 }
 
 - (void)requestLocation:(id)sender {
@@ -402,6 +404,18 @@ static NSButton *MakeButton(NSString *title, NSRect frame, id target, SEL action
     } token:token];
 }
 
+- (void)openCameraTest:(id)sender {
+    (void)sender;
+    if (!self.cameraPreview) self.cameraPreview = [[CameraPreviewController alloc] init];
+    [self.cameraPreview openWindow];
+    [self showStatus:@"Camera test window opened. The camera remains OFF until you press Start Preview."];
+}
+
+- (void)applicationWillTerminate:(NSNotification *)notification {
+    (void)notification;
+    [self.cameraPreview stopPreview];
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     (void)notification;
     NSRect frame = NSMakeRect(0, 0, 750, 675);
@@ -409,14 +423,14 @@ static NSButton *MakeButton(NSString *title, NSRect frame, id target, SEL action
       styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                  NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable)
       backing:NSBackingStoreBuffered defer:NO];
-    self.window.title = @"MacLock Guardian — Diagnostics Preview v1.2.1";
+    self.window.title = @"MacLock Guardian — Camera Preview v1.3";
     [self.window setMinSize:NSMakeSize(750, 675)];
     [self.window center];
     NSView *content = self.window.contentView;
 
     NSTextField *title = MakeLabel(@"MacLock Guardian", NSMakeRect(25, 623, 640, 34), 27, YES);
     [content addSubview:title];
-    NSTextField *subtitle = MakeLabel(@"v1.2.1 alpha — diagnostics + opt-in Telegram / location tests",
+    NSTextField *subtitle = MakeLabel(@"v1.3 alpha — diagnostics + camera self-test (explicit, local only)",
                                        NSMakeRect(25, 594, 690, 24), 12, NO);
     subtitle.textColor = [NSColor secondaryLabelColor];
     [content addSubview:subtitle];
@@ -478,8 +492,13 @@ static NSButton *MakeButton(NSString *title, NSRect frame, id target, SEL action
     [content addSubview:MakeButton(@"Reveal Log", NSMakeRect(395, 144, 147, 30), self, @selector(openLog:))];
     [content addSubview:MakeButton(@"View Log", NSMakeRect(553, 144, 167, 30), self, @selector(viewLog:))];
 
-    self.statusMessageLabel = MakeLabel(@"Ready. No messages or location requests have been sent.",
-                             NSMakeRect(32, 59, 680, 72), 12, NO);
+    [content addSubview:MakeLabel(@"Camera self-test (off by default)",
+                                  NSMakeRect(32, 106, 425, 22), 14, YES)];
+    [content addSubview:MakeButton(@"Open Camera Test", NSMakeRect(525, 104, 195, 30),
+                                   self, @selector(openCameraTest:))];
+
+    self.statusMessageLabel = MakeLabel(@"Ready. No messages, location or camera requests have been sent.",
+                             NSMakeRect(32, 48, 680, 50), 12, NO);
     self.statusMessageLabel.maximumNumberOfLines = 4;
     self.statusMessageLabel.lineBreakMode = NSLineBreakByWordWrapping;
     [content addSubview:self.statusMessageLabel];
